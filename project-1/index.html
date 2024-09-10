@@ -177,28 +177,29 @@ promising debug outputs:
 </table>
 <br>
 <h2>Bells & Whistles (Auto Contrast)</h2>
-In an effort to introduce more contrast into the image, I decided to stretch each channel such that the max value would
-be 255 and the min value would be 0. I effectively used a linear transformation but it seemed like there wasn't too
-many obvious effects. In particular, I believe it could be more effective to run auto-contrast on the perceived luminance
-rather than the individual channels since it did seem the images were dark but not literally with the individual channel
-values. Here is a comparison of before and after for some images:
+In an effort to introduce more contrast into the image, I decided to calculate the overall luminance for each pixel
+such that the darkest and brightest color of the image would be stretched to black / white. I effectively used a linear
+transformation but it seemed like there wasn't too many obvious effects. In particular, I disregarded the outside 1/8th
+of the pixels since I reasoned it had the least impact on the perceived image colors. I feel that it might've been better
+to use a curve for transformation but it seems that the images are already well distributed in terms of the luminance
+histogram.
 <br>
 <table>
     <tr style="vertical-align: top">
-        <td><img src="images/auto-contrast/before/train.jpg"/></td>
-        <td><img src="images/auto-contrast/after/train.jpg"/></td>
+        <td><img src="images/auto-contrast/before/church.jpg"/></td>
+        <td><img src="images/auto-contrast/after/church.jpg"/></td>
     </tr>
     <tr style="vertical-align: top">
-        <td><img src="images/auto-contrast/before/emir.jpg"/></td>
-        <td><img src="images/auto-contrast/after/emir.jpg"/></td>
+        <td><img src="images/auto-contrast/before/onion_church.jpg"/></td>
+        <td><img src="images/auto-contrast/after/onion_church.jpg"/></td>
     </tr>
     <tr style="vertical-align: top">
         <td><img src="images/auto-contrast/before/icon.jpg"/></td>
         <td><img src="images/auto-contrast/after/icon.jpg"/></td>
     </tr>
     <tr style="vertical-align: top">
-        <td><img src="images/auto-contrast/before/church.jpg"/></td>
-        <td><img src="images/auto-contrast/after/church.jpg"/></td>
+        <td><img src="images/auto-contrast/before/lady.jpg"/></td>
+        <td><img src="images/auto-contrast/after/lady.jpg"/></td>
     </tr>
     <tr style="vertical-align: top">
         <td><img src="images/auto-contrast/before/harvesters.jpg"/></td>
@@ -308,7 +309,7 @@ to use decreasingly smaller displacement search windows. In the end, my runs bec
         <div class="description">
             three_generations.jpg<br>
             Displacement:<br>
-            DD DD
+            [47 14] [111   9]
         </div>
     </div>
     <div class="gallery-item">
@@ -316,7 +317,7 @@ to use decreasingly smaller displacement search windows. In the end, my runs bec
         <div class="description">
             tobolsk.jpg<br>
             Displacement:<br>
-            DD DD
+            [3 3] [6 3]
         </div>
     </div>
     <div class="gallery-item">
@@ -324,7 +325,7 @@ to use decreasingly smaller displacement search windows. In the end, my runs bec
         <div class="description">
             train.jpg<br>
             Displacement:<br>
-            DD DD
+            [40  7] [85 34]
         </div>
     </div>
 </div>
