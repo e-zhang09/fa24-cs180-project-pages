@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CS 180 Projects</title>
+    <link rel="stylesheet" href="../minimal.css">
+    <link rel="stylesheet" href="../gallery.css">
+</head>
+<body>
+<h1>Project 1: Colorizing the Prokudin-Gorskii photo collection</h1>
+<b>By Ethan Zhang</b>
+
+<h2>Overview</h2>
+In order to colorize the Prokudin-Gorskii photo collection, the main task is to align the 3 color channels then overlay
+them to create a final image.
+<br><br>
+To approach this problem, I mainly iterated through different alignment options and optimizations until I reached
+visually satisfactory results. In particular, I used NCC (Normalized Cross-Correlation) for similarity checking,
+Canny Edge Feature for better matching, and a Gaussian filter to weigh the center of the image more significantly.
+<br><br>
+Here is an overview of the progression:
+<table>
+    <tr style="vertical-align: top">
+        <td><img src="images/monastery-progression/monastery.jpg"/></td>
+        <td><img src="images/monastery-progression/monastery-original.jpg" alt="Image 1">
+            <div class="description">monastery.jpg (naive)</div></td>
+        <td><img src="images/monastery-progression/monastery-canny.jpg" alt="Image 2">
+            <div class="description">monastery.jpg (canny)</div></td>
+        <td><img src="images/monastery-progression/monastery-canny-gaussian.jpg" alt="Image 2">
+            <div class="description">monastery.jpg (canny + gaussian)</div></td>
+    </tr>
+</table>
+<table>
+    <tr style="vertical-align: top">
+        <td><img src="images/emir-progression/emir%20Medium.jpeg"/></td>
+        <td><img src="images/emir-progression/emir-original.jpg" alt="Image 4">
+            <div class="description">emir.jpg (naive)</div></td>
+        <td><img src="images/emir-progression/emir-canny.jpg" alt="Image 4">
+            <div class="description">emir.jpg (canny)</div></td>
+        <td><img src="images/emir-progression/emir-gaussian.jpg" alt="Image 4">
+            <div class="description">emir.jpg (canny + gaussian)</div></td>
+    </tr>
+</table>
+
+<h2>Single-Scaled Approach</h2>
+
+For the single-scaled approach, I took the most modest approach of exhaustively searching over a 15x15 window of
+displacements for both the red and green channels against the blue channel. For each displacement, I chose to use
+Normalized Cross-Correlation (NCC) as the score but it seemed like the normal euclidean distance formula worked equally
+as well. At this point, I also realized that I could run the normalization process once before the 15x15 window
+iterations since normalization doesn't depend on the order of elements--this seemed to reduce the running time a little
+but I figured the majority probably came from the dot product.
+<br><br>
+It seemed to work pretty well in the case of <code>cathedral.jpg</code> and <code>tobolsk.jpg</code> where a 15x15
+displacement search window seemed small enough to cover a large portion of the margins. In addition, a few pixels off
+also did not seem to affect image quality. However, for the larger tif pictures, it seemed like there was no effect
+at all.
+<br>
+<table>
+    <tr style="vertical-align: top">
+        <td><img src="images/single-scaled/cathedral.jpg"/>
+            <div class="description">cathedral.jpg<br>Displacements:<br>[ 1 -1] [ 7 -1]</div></td>
+        <td><img src="images/single-scaled/tobolsk.jpg"/>
+            <div class="description">tobolsk.jpg<br>Displacements<br>[3 2] [6 3]</div></td>
+    </tr>
+</table>
+<br>
+
+<h2>Image Pyramid Approach</h2>
+
+Having noticed that larger image files probably needed a larger window to search, I began implementing the Image
+Pyramid approach. In this case, the idea is that we can artificially downscale the image channels such that we can
+progressively get closer to where the displacement should actually be at by restoring the resolution, level by level,
+whilst using previously discovered displacements. At this point, I also realized that it wasn't so necessary to run the
+pyramid at higher level since it would essentially downscale it to a few pixels or produce very high displacements
+(since it just rolled the image back to the origin).
+
+<br><br>
+Following this implementation, I had already find several images to align pretty well. For example,
+<code>church.tif</code>, <code>icon.tif</code>, and <code>sculpture.tif</code> all looked well aligned:
+<br>
+
+<table>
+    <tr style="vertical-align: top">
+        <td><img src="images/image-pyramid/church.jpg"/>
+            <div class="description">church.jpg<br>Displacements:<br>[0 -5] [52 -6]</div></td>
+        <td><img src="images/image-pyramid/icon.jpg"/>
+            <div class="description">icon.jpg<br>Displacements<br>[42 16] [89 22]</div></td>
+        <td><img src="images/image-pyramid/sculpture.jpg"/>
+            <div class="description">sculpture.jpg<br>Displacements<br>[ 33 -11] [140 -26]</div></td>
+    </tr>
+</table>
+
+<br>
+However, there were also a few that stood out like <code>emir.tif</code> and <code>harvesters.tif</code>:
+<br>
+
+<table>
+    <tr style="vertical-align: top">
+        <td><img src="images/image-pyramid/emir.jpg"/>
+            <div class="description">emir.jpg<br>Displacements:<br>[-3  7] [107  17]</div></td>
+        <td><img src="images/image-pyramid/harvesters.jpg"/>
+            <div class="description">harvesters.jpg<br>Displacements<br>[118  -3] [257  -2]</div></td>
+    </tr>
+</table>
+
+<br>
+For <code>emir.tif</code> I had a guess that the misalignment probably came from the largely solid blue-ish clothing.
+Since that would saturate the blue channel around that region, it probably had a high correlation coefficient with
+all the other channel at many displacements. In addition, I had a feeling that it could also be caused by the image
+borders.
+<br><br>
+Similarly for <code>harvesters.tif</code>, there were a lot of similar shapes in terms of the greenery and the people
+wore similar color clothing which meant it was very easy for there to be close matches even though the displacement
+might be significantly off from the actual displacement.
+<br><br>
+In order to resolve these issues, I felt that it might be better to try and correlate things that would be consistent
+across the color channels. In particular, I looked into finding edges in an image since I reasoned that it would likely
+remain consistent throughout the colors.
+
+<h2>Bells & Whistles (Better Feature, Edge Detection)</h2>
+
+At this point, I have discovered the Canny edge detector which was conveniently built into Scikit image. Since it also
+generates a np array that represents an image for the specific channel, it was relatively simple to run the exact same
+correlation / Image Pyramid algorithms devised in the previous steps. However, it didn't end up being as effective as I
+first imagined. Although images like <code>emir.tif</code> and <code>harvesters.tif</code> had dramatically improved
+alignment, some basic images like <code>cathedral.jpg</code> and <code>monastery.jpg</code> had a large regression.
+<br>
+<table>
+    <tr style="vertical-align: top">
+        <td><img src="images/canny/emir.jpg"/>
+            <div class="description">emir.jpg<br>Displacements:<br>[49 23] [107  40]</div></td>
+        <td><img src="images/canny/harvesters.jpg"/>
+            <div class="description">harvesters.jpg<br>Displacements<br>[60 18] [123  10]</div></td>
+    </tr>
+</table>
+<table>
+    <tr style="vertical-align: top">
+        <td><img src="images/canny/cathedral.jpg"/>
+            <div class="description">cathedral.jpg<br>Displacements:<br>[-175 -151] [-180   -1]</div></td>
+        <td><img src="images/canny/monastery.jpg"/>
+            <div class="description">monastery.jpg<br>Displacements<br>[-76   0] [-82   1]</div></td>
+    </tr>
+</table>
+<br>
+In order to debug why this alignment was happening, I thought it might be helpful to print out the actual channels that
+were being compared:
+<br>
+<table>
+    <tr style="vertical-align: top">
+        <td><img src="images/canny/cathedral-debug-green.jpg"/></td>
+        <td><img src="images/canny/cathedral-debug-red.jpg"/></td>
+        <td><img src="images/canny/monastery-debug-green.jpg"/></td>
+        <td><img src="images/canny/monastery-debug-red.jpg"/></td>
+    </tr>
+</table>
+<br>
+After looking at this, it wasn't immediately clear why it was still misaligning but I began strongly suspecting the
+image borders since it seemed to have the most overlap and the other edges seemed to be missing in the other channel
+which could be leading to the prioritization of matching the border edges.
+
+<h2>Gaussian Filter</h2>
+In order to further improve on the alignment, I looked for a while to de-emphasize the importance of the image borders.
+I reasoned that the photographer likely wanted to capture the subject towards the center of the frame and the debug
+images I printed out also seemed to support this conclusion. To do this, I decided to use a simple np mask that was
+fitted to a gaussian curve on both axis, scaled to [0, 1]. Running it on the same edge images yielded much more
+promising debug outputs:
+<br>
+<table>
+    <tr style="vertical-align: top">
+        <td><img src="images/canny-gaussian/cathedral-debug-green.jpg"/></td>
+        <td><img src="images/canny-gaussian/cathedral-debug-red.jpg"/></td>
+        <td><img src="images/canny-gaussian/monastery-debug-green.jpg"/></td>
+        <td><img src="images/canny-gaussian/monastery-debug-red.jpg"/></td>
+    </tr>
+</table>
+<br>
+<h2>Bells & Whistles (Auto Contrast)</h2>
+In an effort to introduce more contrast into the image, I decided to stretch each channel such that the max value would
+be 255 and the min value would be 0. I effectively used a linear transformation but it seemed like there wasn't too
+many obvious effects. In particular, I believe it could be more effective to run auto-contrast on the perceived luminance
+rather than the individual channels since it did seem the images were dark but not literally with the individual channel
+values. Here is a comparison of before and after for some images:
+<br>
+<table>
+    <tr style="vertical-align: top">
+        <td><img src="images/auto-contrast/before/train.jpg"/></td>
+        <td><img src="images/auto-contrast/after/train.jpg"/></td>
+    </tr>
+    <tr style="vertical-align: top">
+        <td><img src="images/auto-contrast/before/emir.jpg"/></td>
+        <td><img src="images/auto-contrast/after/emir.jpg"/></td>
+    </tr>
+    <tr style="vertical-align: top">
+        <td><img src="images/auto-contrast/before/icon.jpg"/></td>
+        <td><img src="images/auto-contrast/after/icon.jpg"/></td>
+    </tr>
+    <tr style="vertical-align: top">
+        <td><img src="images/auto-contrast/before/church.jpg"/></td>
+        <td><img src="images/auto-contrast/after/church.jpg"/></td>
+    </tr>
+    <tr style="vertical-align: top">
+        <td><img src="images/auto-contrast/before/harvesters.jpg"/></td>
+        <td><img src="images/auto-contrast/after/harvesters.jpg"/></td>
+    </tr>
+</table>
+<br>
+
+
+<h2>Optimizations</h2>
+Lastly, this project had a run time requirement and I noticed that towards the during my image pyramid algorithms, it
+was very rare for the displacement to become more than 5-8 pixels from the previous displacement found. I reasoned that
+this must've been because of the previous scale not being that much further. Therefore, I designed the pyramid algorithm
+to use decreasingly smaller displacement search windows. In the end, my runs became about 60-70% faster.
+<h2>Final Products</h2>
+<div class="gallery">
+    <div class="gallery-item">
+        <img src="images/final/cathedral.jpg">
+        <div class="description">
+            cathedral.jpg<br>
+            Displacement:<br>
+            [5 2] [11  3]
+        </div>
+    </div>
+    <div class="gallery-item">
+        <img src="images/final/church.jpg">
+        <div class="description">
+            church.jpg<br>
+            Displacement:<br>
+            [25  4] [58 -4]
+        </div>
+    </div>
+    <div class="gallery-item">
+        <img src="images/final/emir.jpg">
+        <div class="description">
+            emir.jpg<br>
+            Displacement:<br>
+            [49 23] [107  40]
+        </div>
+    </div>
+    <div class="gallery-item">
+        <img src="images/final/harvesters.jpg">
+        <div class="description">
+            harvesters.jpg<br>
+            Displacement:<br>
+            [60 17] [123  14]
+        </div>
+    </div>
+    <div class="gallery-item">
+        <img src="images/final/icon.jpg">
+        <div class="description">
+            icon.jpg<br>
+            Displacement:<br>
+            [41 16] [90 22]
+        </div>
+    </div>
+    <div class="gallery-item">
+        <img src="images/final/lady.jpg">
+        <div class="description">
+            lady.jpg<br>
+            Displacement:<br>
+            [52  9] [116   8]
+        </div>
+    </div>
+    <div class="gallery-item">
+        <img src="images/final/melons.jpg">
+        <div class="description">
+            melons.jpg<br>
+            Displacement:<br>
+            [81 10] [167  14]
+        </div>
+    </div>
+    <div class="gallery-item">
+        <img src="images/final/monastery.jpg">
+        <div class="description">
+            monastery.jpg<br>
+            Displacement:<br>
+            [-3  2] [2 2]
+        </div>
+    </div>
+    <div class="gallery-item">
+        <img src="images/final/onion_church.jpg">
+        <div class="description">
+            onion_church.jpg<br>
+            Displacement:<br>
+            [50 28] [107  36]
+        </div>
+    </div>
+    <div class="gallery-item">
+        <img src="images/final/sculpture.jpg">
+        <div class="description">
+            sculpture.jpg<br>
+            Displacement:<br>
+            [ 33 -11] [140 -27]
+        </div>
+    </div>
+    <div class="gallery-item">
+        <img src="images/final/self_portrait.jpg">
+        <div class="description">
+            self_portrait.jpg<br>
+            Displacement:<br>
+            [78 29] [175  37]
+        </div>
+    </div>
+    <div class="gallery-item">
+        <img src="images/final/three_generations.jpg">
+        <div class="description">
+            three_generations.jpg<br>
+            Displacement:<br>
+            DD DD
+        </div>
+    </div>
+    <div class="gallery-item">
+        <img src="images/final/tobolsk.jpg">
+        <div class="description">
+            tobolsk.jpg<br>
+            Displacement:<br>
+            DD DD
+        </div>
+    </div>
+    <div class="gallery-item">
+        <img src="images/final/train.jpg">
+        <div class="description">
+            train.jpg<br>
+            Displacement:<br>
+            DD DD
+        </div>
+    </div>
+</div>
+
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+</body>
+</html>
