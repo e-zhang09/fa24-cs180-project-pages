@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CS 180 Projects</title>
+    <link rel="stylesheet" href="../minimal.css">
+    <link rel="stylesheet" href="../gallery.css">
+</head>
+<body>
+<h1>Project 2: Fun with Filters and Frequencies!</h1>
+<b>By Ethan Zhang</b>
+
+<h2>Overview</h2>
+Using a whole lot of Gaussian filters, we are able to do achieve various image manipulations like edge detection, image
+sharpening, hybrid images, and multi-resolution blending.
+
+<h2>Part 1: Fun with Filters</h2>
+
+<h3>Part 1.1: Finite Difference Operator</h3>
+
+For this part, we explore using the dx, dy finite difference filters to generate a gradient magnitude image. Since a
+large dx / dy in an image implies regions of large contrast, the gradient magnitude image can be threshold-ed to
+highlight the edges within an image.
+<br>
+<br>
+First, I obtained an example image of a camera man. Then, I constructed the finite difference filters with
+<code>Dx = [-1 1]</code> and <code>Dy = [-1 1]</code><sup>T</sup>. Since the gradient magnitude can be derived from the
+two partial derivatives, it is now possible to combine the two and binarize it (threshold = 0.30) to get the final
+result. For the threshold, I experimented with values that would include the tripod edges while reducing the noise
+from the grass ground.
+<table>
+    <tr style="vertical-align: top">
+        <td><img src="images/1-1/original.png"/><div class="description">Original</div></td>
+        <td><img src="images/1-1/dx.png"/><div class="description">Convolved w/ Dx</div></td>
+        <td><img src="images/1-1/dy.png"/><div class="description">Convolved w/ Dy</div></td>
+        <td><img src="images/1-1/grad_magnitude.png"/><div class="description">Grad Magnitude</div></td>
+        <td><img src="images/1-1/final_result.png"/><div class="description">Final Result</div></td>
+    </tr>
+</table>
+
+<h3>Part 1.2: Derivative of Gaussian (DoG) Filter</h3>
+
+Since the image has a bit of noise, the previous image has created some specks as edges (i.e., within the grass).
+Although it is pretty unavoidable for images to be noisy, it is possible to pre-process it in the way to highlight
+the sustained edges by smoothing out the high frequencies. To do this, I used a Gaussian filter with an 11x11 kernel
+and <code>sigma = 1</code>. This set of parameters seemed to smooth the image in a way that preserved most of the long
+edges while reducing the specks. After this, I was able to regenerate the partial derivatives that reconstructs the
+gradient magnitude image. For this part, I had to use a smaller threshold (threshold=0.125) because the smoothing had
+significantly reduced the magnitudes.
+
+<table>
+    <tr style="vertical-align: top">
+        <td><img src="images/1-1/original.png"/><div class="description">Original</div></td>
+        <td><img src="images/1-2/smoothed.png"/><div class="description">Smoothed</div></td>
+        <td><img src="images/1-2/smoothed_dx.png"/><div class="description">Convolved w/ Dx</div></td>
+        <td><img src="images/1-2/smoothed_dy.png"/><div class="description">Convolved w/ Dy</div></td>
+        <td><img src="images/1-2/smoothed_grad_magnitude.png"/><div class="description">Grad Magnitude</div></td>
+        <td><img src="images/1-2/final_result.png"/><div class="description">Final Result</div></td>
+    </tr>
+</table>
+
+As a result of the smoothing, a lot of the specks were gone and the edges were thicker.
+<br>
+<br>
+In the previous method, I used separate operations to convolve with the Gaussian filter then the Finite Difference
+operators. However, it is possible to convolve the Finite Difference operators with the Gaussian filters to create
+DoG filters and reduce the number of convolutions by 1. In the following figure, we see that it does not change the
+end results at all.
+
+<table>
+    <tr style="vertical-align: top">
+        <td><img src="images/1-1/original.png"/><div class="description">Original</div></td>
+        <td></td>
+        <td><img src="images/1-2/DoG_x.png" style="width: 100%"/><div class="description">Dx Smoothed</div></td>
+        <td><img src="images/1-2/DoG_y.png" style="width: 100%"/><div class="description">Dy Smoothed</div></td>
+        <td><img src="images/1-2/grad_smoothed_mag.png"/><div class="description">Grad Magnitude</div></td>
+        <td><img src="images/1-2/result_final.png"/><div class="description">Final Result</div></td>
+    </tr>
+</table>
+
+<h2>Part 2: Fun with Frequencies!</h2>
+
+<h3>Part 2.1: Image "Sharpening"</h3>
+
+In order to "sharpen" images, it is possible to add in additional high frequency components of an image.
+Specifically, I chose to convolve the image with an "unsharp mask" filter which is a unit impulse filter
+subtracted by a gaussian filter (which represents the low frequencies).
+<br>
+<br>
+Using an alpha of 0.7, a 7x7 kernel, and sigma of 1, I created the following set of sharpened images:
+
+<table>
+    <tr style="vertical-align: top">
+        <td><img src="images/2-1/taj.png"/><div class="description">taj.png</div></td>
+        <td><img src="images/2-1/taj_sharp.png"/><div class="description">taj.png (Sharpened)</div></td>
+    </tr>
+</table>
+<table>
+    <tr style="vertical-align: top">
+        <td><img src="images/2-1/img.png"/><div class="description">monastery.png</div></td>
+        <td><img src="images/2-1/img_1.png"/><div class="description">monastery.png (Sharpened)</div></td>
+    </tr>
+</table>
+<table>
+    <tr style="vertical-align: top">
+        <td><img src="images/2-1/img_2.png"/><div class="description">cathedral.png</div></td>
+        <td><img src="images/2-1/img_3.png"/><div class="description">cathedral.png (Sharpened)</div></td>
+    </tr>
+</table>
+
+Then, for evaluation, I picked a sharp image, then blurred, then sharpened using the same gaussian filters to
+see if this process might be reversible.
+
+<table>
+    <tr style="vertical-align: top">
+        <td><img src="images/2-1/train_orig.jpg"/><div class="description">train.jpg</div></td>
+        <td><img src="images/2-1/train_smooth.jpg"/><div class="description">train.jpg (Smoothed)</div></td>
+        <td><img src="images/2-1/train_resharp.jpg"/><div class="description">train.jpg (Sharpened)</div></td>
+    </tr>
+</table>
+
+After resharpening the image, it seemed like edges in the image became a lot more sharp and there was an overall "sharp"
+quality. However, the intensity of the colors seem to have diminished (almost blurred in a color sense).
+
+<h3>Part 2.2: Hybrid Images</h3>
+
+For this part, I tried to create "hybrid images" with the approach described in the SIGGRAPH 2006 paper by Oliva,
+Torralba, and Schyns. Specifically, it is possible to take advantage of how human perception works by merging the
+high frequencies of an image and low frequencies of another. Then, it is normal to see the lower frequencies at further
+distances while we focus on higher frequencies at closer distances.
+<br>
+<br>
+To tune the hybrid images, separate parameters were created for each gaussian filter used. Then, I also decided to add
+a "ratio" factor that scales the amount each image is added back to the result.
+<br>
+<br>
+Using
+<code>sigma</code><sub><code>low_freq</code></sub><code> = 3</code>,
+<code>sigma</code><sub><code>high_freq</code></sub><code> = 6</code>, and
+<code>ratio = 0.3</code>, I was able to create the following derek&mdash;cat image:
+
+<table>
+    <tr style="vertical-align: bottom">
+        <td><img src="images/2-2/DerekPicture.jpg"/><div class="description">DerekPicture.jpg</div></td>
+        <td><img src="images/2-2/cat.jpeg"/><div class="description">cat.jpeg</div></td>
+        <td><img src="images/2-2/derek-cat.png"/><div class="description">Derek Cat</div></td>
+    </tr>
+</table>
+
+This cat&mdash;dog was created with
+<code>sigma</code><sub><code>low_freq</code></sub><code> = 6</code>,
+<code>sigma</code><sub><code>high_freq</code></sub><code> = 6</code>, and
+<code>ratio = 0.8</code>:
+
+<table>
+    <tr style="vertical-align: bottom">
+        <td><img src="images/2-2/cat.jpeg"/><div class="description">cat.jpeg</div></td>
+        <td><img src="images/2-2/dog.jpeg"/><div class="description">dog.jpeg</div></td>
+        <td><img src="images/2-2/cat-dog.png"/><div class="description">Cat Dog</div></td>
+    </tr>
+</table>
+This mona lisa&mdash;einstein was created with
+<code>sigma</code><sub><code>low_freq</code></sub><code> = 3</code>,
+<code>sigma</code><sub><code>high_freq</code></sub><code> = 11</code>, and
+<code>ratio = 0.5</code>:
+
+<table>
+    <tr style="vertical-align: bottom">
+        <td><img src="images/2-2/mona_lisa.jpeg"/><div class="description">mona_lisa.jpeg</div></td>
+        <td><img src="images/2-2/einstein.jpeg"/><div class="description">einstein.jpeg</div></td>
+        <td><img src="images/2-2/monalisa-einstein.png"/><div class="description">Mona Lisa Einstein</div></td>
+    </tr>
+</table>
+For this hybrid, I believe the effect doesn't work as well because the facial structures are
+quite different and the lower frequency's colors overpowers the einstein face.
+<br>
+<br>
+This happy&mdash;angry was created with
+<code>sigma</code><sub><code>low_freq</code></sub><code> = 6</code>,
+<code>sigma</code><sub><code>high_freq</code></sub><code> = 6</code>, and
+<code>ratio = 0.125</code>:
+
+<table>
+    <tr style="vertical-align: bottom">
+        <td><img src="images/2-2/dean_norris_smile.jpg"/><div class="description">smile.jpg</div></td>
+        <td><img src="images/2-2/dean_norris_mad.jpg"/><div class="description">mad.jpg</div></td>
+        <td><img src="images/2-2/dean-norris.png"/><div class="description">Smile Mad</div></td>
+    </tr>
+</table>
+
+This process of keeping the high / low frequencies can be demonstrated by the 2D Fourier transform of each stage
+of the transformation:
+
+<table>
+    <tr style="vertical-align: top">
+        <td><img src="images/2-2/smile-fft.png"/><div class="description">FT of smile.jpg</div></td>
+        <td><img src="images/2-2/frown-fft.png"/><div class="description">FT of mad.jpg</div></td>
+        <td><img src="images/2-2/low-pass.png"/><div class="description">Low Passed smile.jpg</div></td>
+        <td><img src="images/2-2/high-pass.png"/><div class="description">High Passed mad.jpg</div></td>
+        <td><img src="images/2-2/result-fft.png"/><div class="description">FT of Smile Mad</div></td>
+    </tr>
+</table>
+
+<h5>Bells & Whistles: Colors</h5>
+
+In the original hybrid images, like the smile&mdash;mad example, was kept fully in gray scale. This reduces the
+amount of convolution to just one channel but I decided to also experimenting with coloring the two images. Specifically,
+I ended up coloring just the low_passed transformation of mona lisa&mdash;einstein and derek&mdash;cat
+because subjectively, it seemed like it was harder for me to see the low-passed images. By adding color, it made it more
+visible and I was able to balance the ratio to show more high frequencies for the closer-up view. In one case, the cat&mdash;dog,
+the high frequency dog was a bit harder to see, so I ended up only coloring the high frequencies.
+<br>
+<br>
+In the end, it seems like either high or low frequencies can be colored depending on the scenario.
+
+<h3>Part 2.3: Gaussian and Laplacian Stacks</h3>
+
+In order to begin implementing multi-resolution blending, I first implemented the creation of
+Gaussian and Laplacian stacks. In particular, I applied my stack functions with a kernel size of
+11x11 and sigma of 3 to generate the following stacks for oraple.jpg (where the laplacian is the diff element-wise
+and the last index is the last gaussian).
+
+<figure>
+    <img src='images/2-3/oraple.jpg' alt='oraple.jpg' />
+    <figcaption>oraple.jpg</figcaption>
+</figure>
+<table>
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/2-3/g1.png' />
+                <figcaption>Gaussian level 1</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/2-3/g2.png' />
+                <figcaption>Gaussian level 2</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/2-3/g3.png' />
+                <figcaption>Gaussian level 3</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/2-3/g4.png' />
+                <figcaption>Gaussian level 4</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/2-3/g5.png' />
+                <figcaption>Gaussian level 5</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+<table>
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/2-3/l1.png' />
+                <figcaption>Laplacian level 1</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/2-3/l2.png' />
+                <figcaption>Laplacian level 2</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/2-3/l3.png' />
+                <figcaption>Laplacian level 3</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/2-3/l4.png' />
+                <figcaption>Laplacian level 4</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/2-3/l5.png' />
+                <figcaption>Laplacian level 5</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+
+<h3>Part 2.4: Multiresolution Blending (a.k.a. the oraple!)</h3>
+
+Then, to implement Multiresolution Blending, I first generate a Gaussian stack of a base mask that I
+intended to use. To create the Oraple, I chose to use two masks: a half/half vertically separate and a
+half/half horizontally separate masks. Then, I also generate the Laplacian stacks of the two input images
+such that it will be possible to combine each layer of the stacks with the ratios set by the level of the
+mask Gaussian stack.
+<br>
+<br>
+For the Oraple specifically, I chose to use
+<code>kernel</code><sub><code>filter</code></sub><code> = 81x81</code>,
+<code>kernel</code><sub><code>image_gauss</code></sub><code> = 5x5</code>,
+<code>sigma</code><sub><code>filter</code></sub><code> = 25</code>,
+<code>sigma</code><sub><code>image_gauss</code></sub><code> = 5</code>, and
+<code>N = 20</code>:
+
+<table>
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/2-4/spline/apple.jpeg' />
+                <figcaption>apple.jpeg</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/2-4/spline/orange.jpeg' />
+                <figcaption>orange.jpeg</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/2-4/spline/oraple-v.png' />
+                <figcaption>oraple-v.png</figcaption>
+            </figure>
+        </td>
+    </tr>
+    <tr style="vertical-align: top">
+        <td>
+        </td>
+        <td>
+            <figure>
+                <img src='images/2-4/spline/oraple-h.png' />
+                <figcaption>oraple-h.png</figcaption>
+            </figure>
+        </td>
+        <td>
+        </td>
+    </tr>
+</table>
+
+For this meteor blend, I created a custom mask for the meteor by binar-izing the image. Then,
+I used
+<code>kernel</code><sub><code>filter</code></sub><code> = 81x81</code>,
+<code>kernel</code><sub><code>image_gauss</code></sub><code> = 5x5</code>,
+<code>sigma</code><sub><code>filter</code></sub><code> = 25</code>,
+<code>sigma</code><sub><code>image_gauss</code></sub><code> = 5</code>, and
+<code>N = 20</code>:
+
+<table class="extra-height">
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/2-4/meteor/costco.png' />
+                <figcaption>costco.png</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/2-4/meteor/meteor.png' />
+                <figcaption>meteor.png</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/2-4/meteor/mask.png' style="filter: invert(100%)" />
+                <figcaption>mask.png</figcaption>
+            </figure>
+        </td>
+    </tr>
+    <tr style="vertical-align: top">
+        <td>
+        </td>
+        <td>
+            <figure>
+                <img src='images/2-4/meteor/costco-meteor.png' />
+                <figcaption>costco-meteor.png</figcaption>
+            </figure>
+        </td>
+        <td>
+        </td>
+    </tr>
+</table>
+
+For this eiffel tower / oriental pearl tower blend, I used a horizontal filter with
+<code>kernel</code><sub><code>filter</code></sub><code> = 81x81</code>,
+<code>kernel</code><sub><code>image_gauss</code></sub><code> = 5x5</code>,
+<code>sigma</code><sub><code>filter</code></sub><code> = 25</code>,
+<code>sigma</code><sub><code>image_gauss</code></sub><code> = 5</code>, and
+<code>N = 5</code>:
+
+<table>
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/2-4/oriental_eiffel/oriental.png' />
+                <figcaption>oriental.png</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/2-4/oriental_eiffel/eiffel.png' />
+                <figcaption>eiffel.png</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/2-4/oriental_eiffel/oriental-eiffel.png' />
+                <figcaption>oriental-eiffel.png</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+To illustrate this complete process, I've also displayed the laplacian stacks (gray-scaled) of the two
+input images and also the gaussian stacks of the result:
+
+<table class="extra-height">
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/2-4/oriental_eiffel/laplacian/image1-1.png' />
+                <figcaption>oriental level 1</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/2-4/oriental_eiffel/laplacian/image1-2.png' />
+                <figcaption>oriental level 2</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/2-4/oriental_eiffel/laplacian/image1-3.png' />
+                <figcaption>oriental level 3</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/2-4/oriental_eiffel/laplacian/image1-4.png' />
+                <figcaption>oriental level 4</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/2-4/oriental_eiffel/laplacian/image1-5.png' />
+                <figcaption>oriental level 5</figcaption>
+            </figure>
+        </td>
+    </tr>
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/2-4/oriental_eiffel/laplacian/image2-1.png' />
+                <figcaption>eiffel level 1</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/2-4/oriental_eiffel/laplacian/image2-2.png' />
+                <figcaption>eiffel level 2</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/2-4/oriental_eiffel/laplacian/image2-3.png' />
+                <figcaption>eiffel level 3</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/2-4/oriental_eiffel/laplacian/image2-4.png' />
+                <figcaption>eiffel level 4</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/2-4/oriental_eiffel/laplacian/image2-5.png' />
+                <figcaption>eiffel level 5</figcaption>
+            </figure>
+        </td>
+    </tr>
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/2-4/oriental_eiffel/laplacian/result-1.png' />
+                <figcaption>result level 1</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/2-4/oriental_eiffel/laplacian/result-2.png' />
+                <figcaption>result level 1</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/2-4/oriental_eiffel/laplacian/result-3.png' />
+                <figcaption>result level 1</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/2-4/oriental_eiffel/laplacian/result-4.png' />
+                <figcaption>result level 1</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/2-4/oriental_eiffel/laplacian/result-5.png' />
+                <figcaption>result level 1</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+<h5>Bells & Whistles: color</h5>
+
+Although the process is generally used for a single channel, gray-scaled image, I've decided to
+add color by running all the convolutions on all three channels (using gray-scale for the debugging output).
+This did make the background of images blend together more weirdly because of different colors but generally,
+with similar backgrounds like the oraple, the effect looks quite well.
+
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+</body>
+</html>

@@ -90,7 +90,7 @@ table thead, table tr {
     table-layout: fixed;
     width: 100%;
 }
-table tr:nth-child(even) {
+.striped tr:nth-child(even) {
     background-color: rgba(200, 200, 200, 0.2);
 }
 table tbody {
@@ -98,8 +98,17 @@ table tbody {
     max-height: 70vh;
     overflow-y: auto;
 }
+
+.extra-height tbody {
+    max-height: 90vh;
+}
+
 table td, table th {
     padding: 0.25em;
+}
+
+table tr td .description {
+    margin-left: 0.5em;
 }
 
 table, .highlight > pre, pre.example {
