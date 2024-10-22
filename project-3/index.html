@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CS 180 Projects</title>
+    <link rel="stylesheet" href="../minimal.css">
+    <link rel="stylesheet" href="../gallery.css">
+</head>
+<body>
+<h1>Project 3: Face Morphing</h1>
+<b>By Ethan Zhang</b>
+
+<h2>Overview</h2>
+In order to morph two faces together, I manually defined correspondences between the two faces. Then, a Delaunay
+triangulation can be applied on the average points between the pair of correspondences. With the triangulation in hand,
+it is possible to calculate the forward / backward affine transformation matrices between triangulations in the average
+shape and each of the source images. With these matrices, it is already possible to do forward warping.
+However, I decided to use backward warping which allows for seamless reconstruction of the final
+image. More specifically, I am able to apply the inverse affine transformation matrix on coordinate points within each
+triangulation then use a ratio to merge the resulting source colors.
+
+<h2>Part 1. Defining Correspondences</h2>
+
+In order to define correspondences on the image, I first coded a rudimentary tool with <code>ginput</code> that worked
+decently well.
+
+<table class="extra-height">
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/p1/2.png' />
+                <figcaption>Picker</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/p1/1.png' />
+                <figcaption>Result on Ethan</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+However, once I began to select a lot more correspondences to produce better morphs, it became quickly apparent that
+it was very hard to keep track of the order at which I clicked. This is when I decided to use an online tool made by a
+previous student: <a href="https://cal-cs180.github.io/fa23/hw/proj3/tool.html" target="_blank" rel="noreferrer">https://cal-cs180.github.io/fa23/hw/proj3/tool.html</a>
+
+<table class="extra-height">
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/p1/3.png' />
+                <figcaption>Result on Ethan</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/p1/4.png' />
+                <figcaption>Result on Royce</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+The above figure also shows the Delaunay triangulation being computed on the correspondence points. I also found that
+automatically adding correspondences for the corner of the image also yielded better morphing around the edges of the face.
+
+<h2>Part 2. Computing the "Mid-way Face"</h2>
+
+Using the high level process described in the overview, I computed the mid-way face between my friend and I.
+Specifically, I used a warping and dissolving factor of 0.5 to have half way shape and colors from both of the input faces.
+Although I ran into a lot of issues with the column vs row storage of the points, I eventually decided to stick with
+the lecture format and calculated the affine matrix with the points stacked horizontally. Then, the transformation matrix
+was applied on all the points in each triangulation that was generated with <code>ski.draw.polygon</code>.
+
+<table>
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/p2/ethan.jpg' />
+                <figcaption>Input 1</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/p2/1.png' />
+                <figcaption>Morph</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/p2/royce.jpg' />
+                <figcaption>Input 2</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+<h2>Part 3. The Morph Sequence</h2>
+
+By re-using the code from the previous part and parameterizing the dissolve and warp fractions, I was also able to generate
+an image sequence that represents the intermediate progress between the Ethan geometry (& colors) and that of Royce's.
+
+<figure>
+    <img src='images/p3/morph-sequence.gif'/>
+    <figcaption>Ethan -> Royce</figcaption>
+</figure>
+
+<h2>Part 4. The "Mean face" of a population</h2>
+
+After downloading the <a href="https://web.archive.org/web/20210305094647/http://www2.imm.dtu.dk/~aam/datasets/datasets.html">Danes</a> dataset,
+I was able to merge all of the pre-annotated correspondences into an average shape. This average shape was then used to morph
+all of the faces in the dataset into the same average shape to generate an average face of the population.
+
+<figure>
+    <img src='images/p4/1.png'/>
+    <figcaption>Average face of Danes</figcaption>
+</figure>
+
+Then, to test how my face would warp into the average geometry of the Danes population, I found the same correspondences
+on my own face with the previously mentioned online labeling tool. Additionally, I tried to morph the average of the
+Danes population into my facial geometry.
+
+<table class="extra-height">
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/p4/img.png' />
+                <figcaption>Online Labeling Tool</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+<table class="extra-height">
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/p4/2.png' />
+                <figcaption>Ethan morphed into Danes</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/p4/3.png' />
+                <figcaption>Danes morphed into Ethan</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+<h2>Part 5. Caricatures: Extrapolating from the mean</h2>
+
+By deviating from the average shape of the Danes, I was able to create a caricature of my face:
+
+<table class="extra-height">
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/p4/2.png' />
+                <figcaption>Ethan morphed into Danes</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/p5/1.png' />
+                <figcaption>Ethan morphed slightly</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+Specifically, I used an alpha of 0.75 when adding back the delta X.
+
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+</body>
+</html>
