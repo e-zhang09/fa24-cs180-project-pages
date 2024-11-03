@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CS 180 Projects</title>
+    <link rel="stylesheet" href="../minimal.css">
+    <link rel="stylesheet" href="../gallery.css">
+</head>
+<body>
+<h1>Project 4: [Auto]Stitching Photo Mosaics</h1>
+<b>By Ethan Zhang</b>
+
+<h2>Overview</h2>
+
+In two parts, this project implements a system that can automatically stitch together photos into a photo mosaic.
+First, correspondence between a pair of image was manually defined so that an algorithm to blend the images can be done
+through finding the homography. Then, an algorithm is devised to find features, match features in corresponding images,
+and finally remove outliers through Lowe's trick and Random Sample Consensus (RANSAC).
+
+<h2>Image Warping and Mosaicing</h2>
+
+<h3>Shoot the Pictures</h3>
+
+In order to get some testing images for this portion, I made sure to fix the center of projection (COP) by standing in
+the same spot and only rotating the phone camera. This way, the transforms between the images would be projective.
+
+<!--TODO: put all 3 sets of images here -->
+
+<table>
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/src-photos/1.jpeg' />
+                <figcaption>Soda 1</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/src-photos/2.jpeg' />
+                <figcaption>Soda 2</figcaption>
+            </figure>
+        </td>
+    </tr>
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/src-photos/3.jpeg' />
+                <figcaption>Soda 3</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/src-photos/4.jpeg' />
+                <figcaption>Soda 4</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/src-photos/5.jpeg' />
+                <figcaption>Soda 5</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+<table>
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/src-photos/2-1.jpeg' />
+                <figcaption>Wall 1</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/src-photos/2-2.jpeg' />
+                <figcaption>Wall 2</figcaption>
+            </figure>
+        </td>
+    </tr>
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/src-photos/2-3.jpeg' />
+                <figcaption>Wall 3</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/src-photos/2-4.jpeg' />
+                <figcaption>Wall 4</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/src-photos/2-5.jpeg' />
+                <figcaption>Wall 5</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+<table>
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/src-photos/3-1.jpeg' />
+                <figcaption>Building 1</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/src-photos/3-2.jpeg' />
+                <figcaption>Building 2</figcaption>
+            </figure>
+        </td>
+    </tr>
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/src-photos/3-3.jpeg' />
+                <figcaption>Building 3</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/src-photos/3-4.jpeg' />
+                <figcaption>Building 4</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/src-photos/3-5.jpeg' />
+                <figcaption>Building 5</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+I also took pictures of two fridges in order to test the rectification homography matrix:
+
+
+<table>
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/src-photos/rect.jpeg' />
+                <figcaption>Soda Fridge</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/src-photos/fridge.jpeg' />
+                <figcaption>Apartment Frdige</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+<h3>Recover Homographies</h3>
+
+From the sets of images taken, I chose to implement homography recovery on the following two pictures:
+
+<table>
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/manual-warp/img1correspondence.jpg' />
+                <figcaption>Soda 1 manually annotated with <br>correspondence points</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/manual-warp/img2correspondence.jpg' />
+                <figcaption>Soda 2 manually annotated with <br>correspondence points</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+Knowing that point to point transformation can be calculated with <code>p’=Hp</code>, I was able to use the manual
+correspondence points to create <code>2n</code> linear equations which can then be solved with using
+<code>np.linalg.lstsq</code>.
+
+<h3>Warp the Images</h3>
+
+With the homography H matrix, I am now able to apply the transformation globally on the first image to warp it towards
+the perspective of the second image. The straight-forward way would be to set the destination points via <code>p’=Hp</code>
+but I decided to use inverse-warping like that of project 3 in order to avoid gaps in the pixels. In particular, I had
+to handle the possibility of negative coordinates by storing an offset alongside the actual bounding box calculated after
+the translation. The bounding box itself though, was calculated with the corners of the picture warped with <code>H</code>.
+
+As a result, here is the first image warped to the second image's perspective through the homography transformation found
+between the manually marked correspondence points:
+
+<table>
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/manual-warp/1-imwarped.jpg' />
+                <figcaption>Soda 1 warped towards Soda 2</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/src-photos/2.jpeg' />
+                <figcaption>Soda 2</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+<h3>Image Rectification</h3>
+
+In order to sanity check that the image warp function would behave as expected in other situations, I tested it by warping
+two images that contained rectangular objects into a perspective where the corners are actually in a rectangular shape. The
+<code>H</code> matrices were calculated using the methods defined above and here are the results (after cropping back to
+original image dimensions:
+
+<table>
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/src-photos/rect.jpeg' />
+                <figcaption>Soda Fridge</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/manual-warp/soda-fridge.jpg' />
+                <figcaption>Fridge After Crop</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+<table>
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/src-photos/fridge.jpeg' />
+                <figcaption>Apartment Fridge</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/manual-warp/apt-fridge.jpg' />
+                <figcaption>Fridge After Crop</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+<h3>Blend the images into a mosaic</h3>
+
+Lastly, I used the Multi-resolution Blending technique implemented in project 2 to smoothly blend together the warped image
+and the base image for the perspective. In particular, I used the correct offsets to put the pair of images in relative
+correct location in the final canvas then generated a mask by perpendicularly separating the centers of the images.
+
+<table>
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/manual-warp/resulting_image_im1.jpg' />
+                <figcaption>Image 1 Warped to Image 2</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/manual-warp/resulting_image_im2.jpg' />
+                <figcaption>Image 2 with offset</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/manual-warp/resulting_image_mask.jpg' />
+                <figcaption>Mask to use for Blending</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+<table>
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/src-photos/1.jpeg' />
+                <figcaption>Soda 1</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/src-photos/2.jpeg' />
+                <figcaption>Soda 2</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/manual-warp/warp_final_image.jpg' />
+                <figcaption>Soda 1 + 2</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+With manual correspondence matching, I also created two more mosaics with Wall 2/3 and Building 3/4:
+
+<table>
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/src-photos/2-2.jpeg' />
+                <figcaption>Wall 2</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/src-photos/2-3.jpeg' />
+                <figcaption>Wall 3</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/manual-warp/23-blended-22.jpg' />
+                <figcaption>Wall 2 + 3</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+<table>
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/src-photos/3-3.jpeg' />
+                <figcaption>Building 3</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/src-photos/3-4.jpeg' />
+                <figcaption>Building 4</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/manual-warp/34-blended-33.jpg' />
+                <figcaption>Building 3 + 4</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+
+<h2>Feature Matching for Autostitching</h2>
+
+In the previous parts, manually picking correspondences was quite tedious and made it hard to stitch together more photos
+in the same scene (since correspondences will have to be re-picked with the new perspective transforms). As such, over
+a few parts, I implemented feature matching to automate correspondence finding.
+
+<h3>Corner Detection</h3>
+For this part, I used the Harris corner detector to find points with high corner response. It turns out, there were a lot
+of corners! In the image Soda 1, I found 13k+ corners:
+
+<table>
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/auto-stitch/img1_harris-corners.jpg' />
+                <figcaption>Harris Corners on Soda 1</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+<h3>Adaptive Non-Maximal Suppression (ANMS)</h3>
+In order to reduce repetition and also space out the possible feature points, I implemented ANMS through calculating
+pairwise distances between the different points. Specifically, I found that my laptop had some issues calculating a large
+amount of distances so I decided to batch the points and generate a full distance matrix. Then, based on the closest
+point that fulfills robustness criteria (based on corner strength), I was able to limit the interest points to 500/1000
+of the points with furthest neighbors.
+<br>
+<br>
+After this part, the number of corners are reduced to 500 and they are much more spread out:
+<table>
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/auto-stitch/img1_after-ANMS.jpg' />
+                <figcaption>Soda 1 after ANMS</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+<h3>Feature Descriptor extraction</h3>
+
+In order to run similarity matching between corresponding features in two images, I vectorized a region around each interest
+point. Specifically, I created a patch from a 40x40 window around the interest point, downsampled it to 8x8, rotated based
+on the corner response orientation, and stacked the values from each of the 3 color channels into one 192x1 vector. Here
+are some of the patches I found in the first image.
+
+<table>
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/rotation-invariance/img1_patch-final-10.jpg' />
+                <figcaption>Patch from Image 1</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/rotation-invariance/img1_patch-final-200.jpg' />
+                <figcaption>Patch from Image 1</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/rotation-invariance/img1_patch-final-400.jpg' />
+                <figcaption>Patch from Image 1</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+<h3>Feature Matching</h3>
+With these feature descriptors of each image, it's still not useful without knowing which features in either image
+corresponds to features in the other. Specifically, it is necessary to automatically find correspondences from the two
+input images in order to find the homography transformation. To do this, I used the <code>dist2</code> function to find
+pairwise distance between every feature patch in image 1 and image 2. Since my image contained a lot of bricks and
+repetitive patterns, it wasn't good enough to just take the closest matches as the correspondence points. Instead, I
+also used Lowe's trick with the second-closest neighbor to filter the features down to those that were highly
+distinctive. In particular, I used a threshold of <code>0.27</code> somewhat arbitrarily but mostly based on the
+<i>Multi-Image Matching using Multi-Scale Oriented Patches</i> paper where it seemed outliers generally had a distance
+of around <code>> 0.4</code> and correct matches had <code>< 0.1</code>.
+<br>
+<br>
+Using image 1 and image 2 to test this portion, very similar patches were found to match:
+
+<!-- TODO: add pair of patches -->
+
+<table>
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/img-patches/match-1.png' />
+                <figcaption>Patches from Soda 1 and Soda 2</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+<table>
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/img-patches/match-2.png' />
+                <figcaption>Patches from Soda 1 and Soda 2</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+<table>
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/img-patches/match-3.png' />
+                <figcaption>Patches from Soda 1 and Soda 2</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+Visually, the kept correspondences already matched pretty well:
+
+<table>
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/auto-stitch/img1_pt_matches.jpg' />
+                <figcaption>Kept patches location in Soda 1</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/auto-stitch/img2_pt_matches.jpg' />
+                <figcaption>Kept patches location in Soda 2</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+<h3>RANSAC</h3>
+
+However, there were still some outliers that didn't correspond well. For example, I found some mistakes in the shadows
+or edges of the steel beam that were close patch matches but incorrect location overall. Thus, it was necessary to
+further reduce outliers through RANSAC. This algorithm randomly samples 4 correspondences and tries to estimate the
+correctness of the homography matrix generated from those 4 correspondence. With luck, it will find increasingly better
+matches, and I can keep the largest set of correspondences that had the best matches given a homography matrix.
+<br>
+<br>
+Again, using image 1 and image 2, the set of correspondences were reduced down to the points shown below:
+
+
+<table>
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/auto-stitch/img1_after-ransac.jpg' />
+                <figcaption>Patches location in Soda 1 after RANSAC</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/auto-stitch/img2_after-ransac.jpg' />
+                <figcaption>Patches location in Soda 2 after RANSAC</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+<h3>Final Results</h3>
+
+Putting everything together, I re-stitched together the previously created mosaics to create the following:
+
+<table>
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/manual-warp/warp_final_image.jpg' />
+                <figcaption>Soda 1 + 2 (Manual)</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/auto-stitch/auto_stitched_12.jpg' />
+                <figcaption>Soda 1 + 2 (Auto)</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+<table>
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/manual-warp/23-blended-22.jpg' />
+                <figcaption>Wall 2 + 3 (Manual)</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/auto-stitch/auto_stitched_2223.jpg' />
+                <figcaption>Wall 2 + 3 (Auto)</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+<table>
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/manual-warp/34-blended-33.jpg' />
+                <figcaption>Building 3 + 4 (Manual)</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/auto-stitch/auto_stitched_3334.jpg' />
+                <figcaption>Building 3 + 4 (Auto)</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+<!--TODO: add final mosaics here-->
+
+<h3>What have you learned?</h3>
+
+I think the coolest thing overall from this project was the effectiveness of RANSAC. Even though it is basically trying
+to take a bunch of lucky guesses, it was cool to see that it eventually came to a consensus and decided on points that
+visually looked optimal. In addition, implementing ANMS proved really interesting to see how spatial separation can be
+done algorithmically. Lastly, I learned a lot about how corner detection and feature descriptions can be refined
+using rotational invariance. In particular, I was able to find the orientation of the corners and compensate for that
+such that all candidate correspondences will have the same orientation adjusted to the patches.
+
+<h3>Bells & Whistle: Rotational Invariance</h3>
+
+Since the prospectives are slightly different between the images taken, the same corner patches may not match up
+exactly in the Feature Matching phase. Visually, I found that some corners were just a few degrees off between the pair
+of images. Initially, I planned to implement rotational invariance by rotating by the opposite of the corner response
+orientation per patch. However, I noticed that in terms of my images that included bricks, it wasn't necessarily a
+good thing to match with complete rotational invariance--I only wanted to match corners that were maybe a few degrees
+off from each other. As such, I decided to rotate by the corner orientation divided by a constant to nudge it towards
+an uniform direction but not completely aligned to a certain axis. Empirically, this seemed to have reduced mismatches.
+<br>
+<br>
+Below are some of the patches before and after the minor rotation correction (before down-scaling):
+
+<table>
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/rotation-invariance/img1_patch-10.jpg' />
+                <figcaption>Patches location in Soda 1 after RANSAC</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/rotation-invariance/img1_patch-rotated-10.jpg' />
+                <figcaption>Patches location in Soda 2 after RANSAC</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+<table>
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/rotation-invariance/img1_patch-200.jpg' />
+                <figcaption>Patches location in Soda 1 after RANSAC</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/rotation-invariance/img1_patch-rotated-200.jpg' />
+                <figcaption>Patches location in Soda 2 after RANSAC</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+<table>
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/rotation-invariance/img1_patch-400.jpg' />
+                <figcaption>Patches location in Soda 1 after RANSAC</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/rotation-invariance/img1_patch-rotated-400.jpg' />
+                <figcaption>Patches location in Soda 2 after RANSAC</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+</body>
+</html>
