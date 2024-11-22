@@ -19,3 +19,22 @@
 .description {
     font-size: 75%;
 }
+
+.zoom-out-on-hover:active{
+    transition-duration: 0.5s;
+    transition: all ease-in-out 0.3s;
+    transform: scale(0.25);
+}
+
+.jp-RenderedHTMLCommon > table {
+    padding: 0;
+    margin: 0;
+    border: none;
+}
+
+.jp-RenderedHTMLCommon > table > tbody > tr > td > img {
+    width: 64px;
+    height: 64px;
+    object-fit: contain !important;
+    padding: 3px;
+}
