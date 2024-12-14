@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CS 180 Projects</title>
+    <link rel="stylesheet" href="../minimal.css">
+    <link rel="stylesheet" href="../gallery.css">
+</head>
+<body>
+<h1>Project 6: High Dynamic Range & Eulerian Video Magnification</h1>
+<b>By Ethan Zhang</b>
+
+<h2>Overview</h2>
+
+For my final projects, I explored the concept of HDR image merging and Eulerian Video Magnification. In the first
+project, I explored using a various of techniques to estimate the true radiance map from a collection of images. With
+the radiance map, it was then possible to squash the overall range of brightness in a series of photos to the range [0, 255]
+that a display can expect / display (via a few tone mapping techniques). Then, I looked into Eulerian Video Magnification
+which seemed like a cool technique to emphasize minute changes happening in a video.
+
+<h2>High Dynamic Range</h2>
+
+<h3>Recovering the Radiance Map</h3>
+
+Referencing the paper from <a href="https://www.pauldebevec.com/Research/HDR/debevec-siggraph97.pdf">Debevec and Malik in 1997</a>,
+it was somewhat straightforward to estimate the true scene radiance (knowing the amount of exposure time the input image took) through
+the estimation of a pixel response curve (f).
+This is summarized through the equation: <br/><br/>
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+  <msub>
+    <mi>Z</mi>
+    <mrow>
+      <mi>i</mi>
+      <mi>j</mi>
+    </mrow>
+  </msub>
+  <mo>=</mo>
+  <mi>f</mi>
+  <mo stretchy="false">(</mo>
+  <msub>
+    <mi>E</mi>
+    <mi>i</mi>
+  </msub>
+  <mi mathvariant="normal">&#x394;</mi>
+  <msub>
+    <mi>t</mi>
+    <mi>j</mi>
+  </msub>
+  <mo stretchy="false">)</mo>
+  <mo>.</mo>
+</math><br/>
+Since f can be complex, the paper suggests solving for an estimate of the log inverse of f. Because the input images contain
+a large amount of pixels values, it is possible to pick a sample of pixel values and use least squares to generally solve for
+the parameters to g. With g estimated, the previous equation can be re-arranged to solve for E<sub>i</sub>:<br/><br/>
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+  <mi>l</mi>
+  <mi>n</mi>
+  <mo stretchy="false">(</mo>
+  <msub>
+    <mi>E</mi>
+    <mi>i</mi>
+  </msub>
+  <mo stretchy="false">)</mo>
+  <mo>=</mo>
+  <mi>g</mi>
+  <mo stretchy="false">(</mo>
+  <msub>
+    <mi>Z</mi>
+    <mrow>
+      <mi>i</mi>
+      <mi>j</mi>
+    </mrow>
+  </msub>
+  <mo stretchy="false">)</mo>
+  <mo>&#x2212;</mo>
+  <mi>l</mi>
+  <mi>n</mi>
+  <mo stretchy="false">(</mo>
+  <mi mathvariant="normal">&#x394;</mi>
+  <msub>
+    <mi>t</mi>
+    <mi>j</mi>
+  </msub>
+  <mo stretchy="false">)</mo>
+  <mo>.</mo>
+</math>
+
+
+<h4>Chapel Source Images</h4>
+
+In a scene where there are really bright spots and dark spots, it could become impossible to capture details inside
+a single exposure thus necessitating the use of HDR merges. In the following set of pictures, it is not quite possible
+for both the details of the windows and steps to be captured at once.
+
+<table class="extra-height">
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/hdr/chapel/32_1.png' style="width: 256px; object-fit: contain"/>
+                <figcaption>32s</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/hdr/chapel/8_1.png' style="width: 256px; object-fit: contain"/>
+                <figcaption>8s</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/hdr/chapel/1_2.png' style="width: 256px; object-fit: contain"/>
+                <figcaption>1/2s</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/hdr/chapel/1_8.png' style="width: 256px; object-fit: contain"/>
+                <figcaption>1/8s</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/hdr/chapel/1_1024.png' style="width: 256px; object-fit: contain"/>
+                <figcaption>1/1024s</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+<h4>Radiance maps</h4>
+
+With the techniques in hand, I ran the algorithm on the "chapel" testing set of photos to generate the following radiance maps: <br/>
+
+<table class="extra-height">
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/hdr/chapel/hdr_radiance_map_mean.png' style="width: 256px; object-fit: contain"/>
+                <figcaption>Mean radiance across channels</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/hdr/chapel/hdr_radiance_map.png' style="width: 256px; object-fit: contain"/>
+                <figcaption>Radiance linearly scaled back to 0-1</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+As expected, the windows were exceptionally bright as compared to the rest of the chapel. <br/>
+
+<h4>Pixel Response Curves</h4>
+
+<table class="extra-height">
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/hdr/chapel/response_curve.png'/>
+                <figcaption>Estimated Pixel Response (for RGB channels)</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+<h3>Tone Mapping</h3>
+
+With the radiance map, it is then possible to adjust the scaling given to each radiance value (and stretch / squeeze
+brightness ranges) to fit more of a range inside the same picture (since displays can only display a finite range). First,
+I implemented a few global tone mapping operators which scaled based on a global estimate. Specifically, I used a linear scaling
+and also <a href="https://doi.org/10.1145/566570.566575"><i>the Reinhard et al. operator</i></a>
+<math xmlns="http://www.w3.org/1998/Math/MathML">
+  <mi>E</mi>
+  <mrow>
+    <mo>/</mo>
+  </mrow>
+  <mo stretchy="false">(</mo>
+  <mn>1</mn>
+  <mo>+</mo>
+  <mi>E</mi>
+  <mo stretchy="false">)</mo>
+</math>. In the following gallery of results, it can be reasonably concluded that these simple operators did
+very well in many situations. However, I also experimented with a local operator proposed in <a href="http://people.csail.mit.edu/fredo/PUBLI/Siggraph2002/DurandBilateral.pdf">Durand 2002</a>. This operator uses a bilateral filter to separate out
+the lower frequencies for separate scaling. Also as shown below, it seems that this operator does better in revealing the
+very brighter spots (like the windows) but have issues when the original radiance range is very high.
+<br/><br/>
+<table class="extra-height">
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/hdr/chapel/global_scale.png'/>
+                <figcaption>Global Scale (Chapel)</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/hdr/chapel/global_simple.png'/>
+                <figcaption>Reinhard (Chapel)</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/hdr/chapel/durand.png'/>
+                <figcaption>Durand (Chapel)</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+<table class="extra-height">
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/hdr/arch/global_scale.png'/>
+                <figcaption>Global Scale (Arch)</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/hdr/arch/global_simple.png'/>
+                <figcaption>Reinhard (Arch)</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/hdr/arch/durand.png'/>
+                <figcaption>Durand (Arch)</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+<table class="extra-height">
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/hdr/garage/global_scale.png'/>
+                <figcaption>Global Scale (Garage)</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/hdr/garage/global_simple.png'/>
+                <figcaption>Reinhard (Garage)</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/hdr/garage/durand.png'/>
+                <figcaption>Durand (Garage)</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+<table class="extra-height">
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/hdr/garden/global_scale.png'/>
+                <figcaption>Global Scale (Garden)</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/hdr/garden/global_simple.png'/>
+                <figcaption>Reinhard (Garden)</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/hdr/garden/durand.png'/>
+                <figcaption>Durand (Garden)</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+<table class="extra-height">
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/hdr/house/global_scale.png'/>
+                <figcaption>Global Scale (House)</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/hdr/house/global_simple.png'/>
+                <figcaption>Reinhard (House)</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/hdr/house/durand.png'/>
+                <figcaption>Durand (House)</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+<table class="extra-height">
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/hdr/mug/global_scale.png'/>
+                <figcaption>Global Scale (Mug)</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/hdr/mug/global_simple.png'/>
+                <figcaption>Reinhard (Mug)</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/hdr/mug/durand.png'/>
+                <figcaption>Durand (Mug)</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+<table class="extra-height">
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/hdr/window/global_scale.png'/>
+                <figcaption>Global Scale (Window)</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/hdr/window/global_simple.png'/>
+                <figcaption>Reinhard (Window)</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/hdr/window/durand.png'/>
+                <figcaption>Durand (Window)</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+<h3>B & W: Testing it on my own images!</h3>
+
+Lastly, I took this opportunity to test the radiance mapping and tone mapping on some of my own images! I found this
+really nice rooftop lounge that was extremely bright compared to the outsides at night.
+
+<table class="extra-height">
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/hdr/outside_inside/3_2.jpg'/>
+                <figcaption>3/2s (Roof)</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/hdr/outside_inside/1_3.jpg'/>
+                <figcaption>1/3s (Roof)</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/hdr/outside_inside/1_40.jpg'/>
+                <figcaption>1/40s (Roof)</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+<table class="extra-height">
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/hdr/outside_inside/global_scale.png'/>
+                <figcaption>Global Scale (Roof)</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/hdr/outside_inside/global_simple.png'/>
+                <figcaption>Reinhard (Roof)</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/hdr/outside_inside/durand.png'/>
+                <figcaption>Durand (Roof)</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/hdr/outside_inside/professional.jpg'/>
+                <figcaption>Professional (Roof)</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+Just for fun, I ran the same set of images through a professional HDR merger and I felt like my results were not bad at all!
+
+<h2>Eulerian Video Magnification</h2>
+
+In this project, I explored the technique of accentuating minute changes in a video through frequency filtering in the
+temporal domain. Specifically, I used many of the recommendations and parameters outlined in <a href="index.html">Eulerian Video Magnification for Revealing Subtle Changes in the World by Wu et al., 2012</a>.
+<br/><br/>
+In a few steps, the video is first parsed into individual frames.
+With each frame, the color space is converted into YIQ since it is more useful for separating chromaticity and intensity. Then,
+a laplacian pyramid is generated from each frame to deal with each spatial frequency band separately. Lastly, it is possible
+to construct a signal for each pixel throughout time in the various frequency bands. With this in hand, filtering can be done
+at a frequency level which allows the technique to accentuate movements with specific known frequency ranges.<br/></br>
+For example, humans generally have a heart rate of 24 to 240 beats per minute which corresponds to 0.4 and 4Hz.
+<h3>Laplacian Pyramid</h3>
+For the frequency band separation, I chose to implement it with much similarity to that of project 2. However, I chose to
+reduce the resolution by half at each pyramid level since the signal filtering operation is significantly computation-wise.
+One difference here is that I chose to use a Gaussian kernel rather than the binomial filter as suggested in the paper.
+Looking at the response curve, it didn't seem to have much of a difference so I stuck with my existing implementation.
+<br/>
+<br/>
+To sample this process, I chose to output the Gaussian and Laplacian pyramids (in YIP) for the first frame. Specifically,
+I chose a pyramid height of 3 since I found that the input video already had low resolution so a division of > 16 resulted
+in very poor upscaling performance for the pyramid collapse portion. I also used a much smaller 2/3 division in terms of the size
+to retain more resolution in between layers.
+
+<table class="extra-height">
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/mag/g1.png'/>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/mag/g2.png'/>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/mag/g3.png'/>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/mag/g4.png'/>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/mag/g5.png'/>
+            </figure>
+        </td>
+    </tr>
+</table>
+<table class="extra-height">
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/mag/l1.png'/>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/mag/l2.png'/>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/mag/l3.png'/>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/mag/l4.png'/>
+            </figure>
+        </td>
+        <td>
+            <figure>
+                <img src='images/mag/l5.png'/>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+<h3>Signal Filtering</h3>
+
+For this part of the project, I had a lot less experience with so I mostly followed the parameters suggested by the paper
+for each part and did adjustments until I found a visually satisfying result. Specifics-wise, I chose to use a 6th order
+butterworth filter which seemed much like a bandwidth filter since the edges are much sharper.
+Then, I had to do a lot of shape manipulation to get the signal in the correct shape for batch processing. <br/><br/>
+Here are my results in the end: <br/>
+
+<table class="extra-height">
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/mag/face_slice_before.png'/>
+            </figure>
+        </td>
+    </tr>
+    <tr style="vertical-align: top">
+        <td>
+            <figure>
+                <img src='images/mag/face_slice_after.png'/>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+<table>
+    <tr style="vertical-align: top">
+        <td>
+            <figure style="text-align: center">
+                <video autoplay muted width="200px">
+                    <source src="images/mag/face_original.mp4" type="video/mp4">
+                </video>
+                <figcaption>Original Video</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure style="text-align: center">
+                <video autoplay muted width="200px">
+                    <source src="images/mag/face.mp4" type="video/mp4">
+                </video>
+                <figcaption>Motion and Color amplified</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+
+<table>
+    <tr style="vertical-align: top">
+        <td>
+            <figure style="text-align: center">
+                <video autoplay muted width="200px">
+                    <source src="images/mag/baby2.mp4" type="video/mp4">
+                </video>
+                <figcaption>Original Video</figcaption>
+            </figure>
+        </td>
+        <td>
+            <figure style="text-align: center">
+                <video autoplay muted width="200px">
+                    <source src="images/mag/baby2_new.mp4" type="video/mp4">
+                </video>
+                <figcaption>Motion and Color amplified</figcaption>
+            </figure>
+        </td>
+    </tr>
+</table>
+From this result, I was already very satisfied by the clear motion amplification and color (that likely results from blood
+rushing to the face during each pulse). Next, I also ran the same processing on "baby2.mp4" and a test video that I generated.
+
+<h3>Explain any difficulties and possible reasons for bad results.</h3>
+
+At the end of the day, I didn't get a chance to experiment indepthly with the filter design and the specific frequencies
+in which the physical change was occurring. Because of this, my results were not as fine-tuned and showed the exaggerated movements
+that the paper did. However, I think the "face.mp4" result turned out really well and it only took minimal changes.
+In terms of "baby2.mp4" I think better results (with less noise) could be achievable with a better alpha scheduling per
+frequency band (with the laplacian pyramid). In addition, I also considered doing some fine tuning in terms of scaling the
+final output since the additional emphasis meant a decrease in magnitude in the other areas.
+
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+</body>
+</html>
